@@ -37,7 +37,6 @@ df_opt <- read.csv("data/raw/teaching_training_data_opt.csv")
 
 summary(df) #Get a quick view of each data
 sapply(df, class) #Get class info
-#plot(df) #quick view of our data
 
 # Add in age, change financial sit to ints
 df <- df %>% 
