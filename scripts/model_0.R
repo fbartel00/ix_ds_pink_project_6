@@ -6,17 +6,33 @@
 library(tidyverse)
 library(pastecs)
 library(ISLR)
+library(lubridate)
 
 # turn off scientific notation
 options(scipen=999)
 
 ### Reading Data
 df <- read.csv("data/raw/teaching_training_data.csv")
-# Create financial change variables
+# Create financial change variables and age variables
 df <- df %>% 
   mutate(fin_situ_now = parse_number(as.character(financial_situation_now))) %>% 
   mutate(fin_situ_future = parse_number(as.character(financial_situation_5years))) %>% 
-  mutate(fin_situ_change = fin_situ_future - fin_situ_now)
+  mutate(fin_situ_change = fin_situ_future - fin_situ_now) %>% 
+  mutate(age_at_survey = interval(dob, survey_date_month)/years(1)) %>%
+  mutate(age = floor(age_at_survey))
+# Impute missing values for specific variables
+# Create mean and replace NA values
+testdf = df
+col.names = testdf %>% colnames()
+testdf[,col.names] = data.frame(apply(testdf[col.names], 2, as.numeric))
+str(testdf[,col.names])
+average_missing <- apply(testdf,
+                         2,
+                         mean,
+                         na.rm =  TRUE)
+df <- df %>%
+  mutate(peoplelive  = ifelse(is.na(peoplelive), as.numeric(average_missing["peoplelive"]),df["peoplelive"]))
+# Split data by gender
 df_male <- filter(df,gender=="Male")
 df_female <- filter(df,gender=="Female")
 
@@ -46,13 +62,13 @@ df_test_female <- anti_join(df_female, df_train_index_female)
 
 ### Create the models
 # Total
-reg_tot <- lm(working ~ gender + as.factor(fin_situ_now) + anyhhincome, data = df_train)
+reg_tot <- lm(working ~ gender + age + numchildren + as.factor(peoplelive), data = df_train)
 summary(reg_tot)
 # Male
-reg_male <- lm(working ~ as.factor(fin_situ_now) + anyhhincome, data = df_train_male)
+reg_male <- lm(working ~ + as.factor(peoplelive) + age + numchildren, data = df_train_male)
 summary(reg_male)
 # Female
-reg_female <- lm(working ~ as.factor(fin_situ_now) + anyhhincome, data = df_train_female)
+reg_female <- lm(working ~ + as.factor(peoplelive) + age + numchildren, data = df_train_female)
 summary(reg_female)
 
 ### Create predictions
@@ -71,8 +87,8 @@ ggplot(df_pred_tot) +
   geom_density(mapping = aes(x = pred_tot, colour = gender))
 # Set prediction into dataframe
 df_pred_tot <- df_pred_tot %>% 
-  mutate(binary_pred_tot = case_when(pred_tot >= 0.3 ~ TRUE, 
-                                  pred_tot < 0.3 ~ FALSE))
+  mutate(binary_pred_tot = case_when(pred_tot >= 0.236 ~ TRUE, 
+                                  pred_tot < 0.236 ~ FALSE))
 # Male
 df_pred_male <- as.data.frame(predict.lm(reg_male, df_test_male)) %>% 
   rename(pred_male = "predict.lm(reg_male, df_test_male)")
@@ -86,8 +102,8 @@ ggplot(df_pred_male) +
   geom_density(mapping = aes(x = pred_male))
 # Set prediction into dataframe
 df_pred_male <- df_pred_male %>% 
-  mutate(binary_pred_male = case_when(pred_male >= 0.3 ~ TRUE, 
-                                     pred_male < 0.3 ~ FALSE))
+  mutate(binary_pred_male = case_when(pred_male >= 0.286 ~ TRUE, 
+                                     pred_male < 0.286 ~ FALSE))
 # Female
 df_pred_female <- as.data.frame(predict.lm(reg_female, df_test_female)) %>% 
   rename(pred_female = "predict.lm(reg_female, df_test_female)")
@@ -101,8 +117,8 @@ ggplot(df_pred_female) +
   geom_density(mapping = aes(x = pred_female))
 # Set prediction into dataframe
 df_pred_female <- df_pred_female %>% 
-  mutate(binary_pred_female = case_when(pred_female >= 0.3 ~ TRUE, 
-                                      pred_female < 0.3 ~ FALSE))
+  mutate(binary_pred_female = case_when(pred_female >= 0.211 ~ TRUE, 
+                                      pred_female < 0.211 ~ FALSE))
 
 ### Observe results
 ## Total
@@ -124,7 +140,7 @@ confusion_matrix_tot <- confusion_matrix_tot %>%
   mutate(proportion_pworking = nobs/total_working) %>% 
   mutate(proportion_total = nobs/total_obs)
 ## Male
-table(df_pred_tot$binary_pred_male, df_pred_male$working)
+table(df_pred_male$binary_pred_male, df_pred_male$working)
 # Confusion matrix 
 confusion_matrix_male <- df_pred_male %>% 
   filter(!is.na(binary_pred_male)) %>% 
