@@ -1,37 +1,90 @@
-### model_0.R
+### model_lm.R
 # Author: Joe Delle Donne
 # Date: 7/22/2019
+# Attempted model using linear regression
 
 ## Install necessary packages
 library(tidyverse)
 library(pastecs)
 library(ISLR)
 library(lubridate)
+library(caret)
+library(RANN)
 
 # turn off scientific notation
 options(scipen=999)
 
 ### Reading Data
 df <- read.csv("data/raw/teaching_training_data.csv")
-# Create financial change variables and age variables
+df_cft <- read.csv("data/raw/teaching_training_data_cft.csv")
+df_com <- read.csv("data/raw/teaching_training_data_com.csv")
+df_grit <- read.csv("data/raw/teaching_training_data_grit.csv")
+df_num <- read.csv("data/raw/teaching_training_data_num.csv")
+df_opt <- read.csv("data/raw/teaching_training_data_opt.csv")
+
+### Modifying data
+## Create financial change variables and age variables
 df <- df %>% 
   mutate(fin_situ_now = parse_number(as.character(financial_situation_now))) %>% 
   mutate(fin_situ_future = parse_number(as.character(financial_situation_5years))) %>% 
   mutate(fin_situ_change = fin_situ_future - fin_situ_now) %>% 
   mutate(age_at_survey = interval(dob, survey_date_month)/years(1)) %>%
   mutate(age = floor(age_at_survey))
-# Impute missing values for specific variables
-# Create mean and replace NA values
-testdf = df
-col.names = testdf %>% colnames()
-testdf[,col.names] = data.frame(apply(testdf[col.names], 2, as.numeric))
-str(testdf[,col.names])
-average_missing <- apply(testdf,
-                         2,
-                         mean,
-                         na.rm =  TRUE)
-df <- df %>%
-  mutate(peoplelive  = ifelse(is.na(peoplelive), as.numeric(average_missing["peoplelive"]),df["peoplelive"]))
+## Joining Scores Data to main dataframe
+# Helper function to make uid's distinct
+helper_function <- function(file_name) {
+  file_name %>% 
+    select(2:3) %>% 
+    distinct(unid, .keep_all = TRUE)
+}
+# Modify score data with helper function
+df_cft <- helper_function(df_cft)
+df_com <- helper_function(df_com)
+df_grit <- helper_function(df_grit)
+df_num <- helper_function(df_num)
+df_opt <- helper_function(df_opt)
+# Join data
+df_init_joined <- left_join(df_cft,df_com,by="unid")
+df_scores_joined <- df_init_joined %>% 
+  left_join(df_grit,by="unid") %>%
+  left_join(df_num,by="unid") %>%
+  left_join(df_opt,by="unid")
+df <- left_join(df,df_scores_joined,by="unid")
+
+###  Impute missing values for specific variables
+# peoplelive mean imputation (originally a factor)
+peoplelive_numeric <- as.numeric(as.character(df$peoplelive))
+peoplelive_mean <- mean(peoplelive_numeric,na.rm=TRUE)
+df$peoplelive <- peoplelive_numeric
+df <- df %>% mutate(peoplelive = ifelse(is.na(peoplelive),peoplelive_mean,peoplelive))
+# numchildren mean imputation (originally a factor)
+numchildren_numeric <- as.numeric(as.character(df$numchildren))
+numchildren_mean <- mean(numchildren_numeric,na.rm=TRUE)
+df$numchildren <- numchildren_numeric
+df <- df %>% mutate(numchildren = ifelse(is.na(numchildren),numchildren_mean,numchildren))
+# numearnincome mean imputation (originally a factor)
+numearnincome_numeric <- as.numeric(as.character(df$numearnincome))
+numearnincome_mean <- mean(numearnincome_numeric,na.rm=TRUE)
+df$numearnincome <- numearnincome_numeric
+df <- df %>% mutate(numearnincome = ifelse(is.na(numearnincome),numearnincome_mean,numearnincome))
+# age mean imputation
+age_mean <- mean(df$age,na.rm=TRUE)
+df <- df %>% mutate(age = ifelse(is.na(age),age_mean,age))
+# cft score mean imputation
+cft_mean <- mean(df$cft_score,na.rm=TRUE)
+df <- df %>% mutate(cft_score = ifelse(is.na(cft_score),cft_mean,cft_score))
+# com score mean imputation
+com_mean <- mean(df$com_score,na.rm=TRUE)
+df <- df %>% mutate(com_score = ifelse(is.na(com_score),com_mean,com_score))
+# cft score mean imputation
+grit_mean <- mean(df$grit_score,na.rm=TRUE)
+df <- df %>% mutate(grit_score = ifelse(is.na(grit_score),grit_mean,grit_score))
+# num score mean imputation
+num_mean <- mean(df$num_score,na.rm=TRUE)
+df <- df %>% mutate(num_score = ifelse(is.na(num_score),num_mean,num_score))
+# opt score mean imputation
+opt_mean <- mean(df$opt_score,na.rm=TRUE)
+df <- df %>% mutate(opt_score = ifelse(is.na(opt_score),opt_mean,opt_score))
 # Split data by gender
 df_male <- filter(df,gender=="Male")
 df_female <- filter(df,gender=="Female")
@@ -62,13 +115,14 @@ df_test_female <- anti_join(df_female, df_train_index_female)
 
 ### Create the models
 # Total
-reg_tot <- lm(working ~ gender + age + numchildren + as.factor(peoplelive), data = df_train)
+#reg_tot <- glm(working ~ gender + age + numchildren + peoplelive, data = df_train)
+reg_tot <- lm(working ~ gender + age, data = df_train)
 summary(reg_tot)
 # Male
-reg_male <- lm(working ~ + as.factor(peoplelive) + age + numchildren, data = df_train_male)
+reg_male <- lm(working ~ peoplelive + age + numchildren, data = df_train_male)
 summary(reg_male)
 # Female
-reg_female <- lm(working ~ + as.factor(peoplelive) + age + numchildren, data = df_train_female)
+reg_female <- lm(working ~ peoplelive + age + numchildren, data = df_train_female)
 summary(reg_female)
 
 ### Create predictions
@@ -175,5 +229,3 @@ ggplot(confusion_matrix_female) +
 confusion_matrix_female <- confusion_matrix_female %>% 
   mutate(proportion_pworking = nobs/total_working) %>% 
   mutate(proportion_total = nobs/total_obs)
-
-# Is this model good or bad?
