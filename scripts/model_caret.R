@@ -3,6 +3,8 @@
 # Date: 7/22/2019
 # Attempted model using caret and ensemble methods
 
+#rpart is a decision tree
+
 ## Install necessary packages
 library(tidyverse)
 library(pastecs)
@@ -10,6 +12,8 @@ library(ISLR)
 library(lubridate)
 library(caret)
 library(RANN)
+
+set.seed(1)
 
 # turn off scientific notation
 options(scipen=999)
@@ -29,7 +33,8 @@ df <- df %>%
   mutate(fin_situ_future = parse_number(as.character(financial_situation_5years))) %>% 
   mutate(fin_situ_change = fin_situ_future - fin_situ_now) %>% 
   mutate(age_at_survey = interval(dob, survey_date_month)/years(1)) %>%
-  mutate(age = floor(age_at_survey))
+  mutate(age = floor(age_at_survey)) %>% 
+  filter(!is.na(gender))
 ## Joining Scores Data to main dataframe
 # Helper function to make uid's distinct
 helper_function <- function(file_name) {
@@ -51,28 +56,52 @@ df_scores_joined <- df_init_joined %>%
   left_join(df_opt,by="unid")
 df <- left_join(df,df_scores_joined,by="unid")
 
-#Imputing missing values using median
-df$working <- as.numeric(df$working) # convert working to numeric for caret
+
+
+## Split into 50/50 working and not working
+df_true <- df %>% filter(working=="TRUE")
+df_false <- df %>% filter(working=="FALSE")
+df_sample_true = sample_n(df_true,15000,working="TRUE")
+df_sample_false = sample_n(df_false,15000,working="FALSE")
+df <- rbind(df_sample_true,df_sample_false)
+
+## Imputing missing values using median
+df$working <- as.factor(make.names(df$working)) 
 preProcValues <- preProcess(df, method = c("medianImpute","center","scale"))
 df_processed <- predict(preProcValues, df)
-#Spliting training set into two parts based on outcome: 75% and 25%
+
+## Spliting training set into two parts based on outcome: 75% and 25%
 index <- createDataPartition(df_processed$working, p=0.75, list=FALSE)
 trainSet <- df_processed[ index,]
 testSet <- df_processed[-index,]
-#Defining the training controls for multiple models
+
+## Defining the training controls for multiple models
 fitControl <- trainControl(
   method = "cv",
-  number = 5,
+  number = 10,
   savePredictions = 'final',
-  classProbs = T)
+  classProbs = T,
+  verboseIter = TRUE)
 #Defining the predictors and outcome
-predictors<-c("age", "cft_score", "com_score",
-              "grit_score")
+predictors<-c("cft_score","com_score","grit_score","num_score","opt_score")
 outcomeName<-'working'
-#Training the random forest model
-model_rf<-train(trainSet[,predictors],trainSet[,outcomeName],method='rf',trControl=fitControl,tuneLength=3)
-#Predicting using random forest model
-testSet$pred_rf<-predict(object = model_rf,testSet[,predictors])
+
+# ## Training the random forest model
+# model_rf<-train(trainSet[,predictors],trainSet[,outcomeName],method='rf',trControl=fitControl,tuneLength=3)
+# #Predicting using random forest model
+# testSet$pred_rf<-predict(object = model_rf,testSet[,predictors])
+# #Checking the accuracy of the random forest model
+# confusionMatrix(testSet$working,testSet$pred_rf)
+
+## Training the Logistic regression model
+model_lr<-train(trainSet[,predictors],trainSet[,outcomeName],
+                method='rpart',
+                trControl=fitControl,
+                tuneLength=3,
+                metric="Accuracy")
+#Predicting using knn model
+testSet$pred_lr<-predict(object = model_lr,testSet[,predictors])
 #Checking the accuracy of the random forest model
-confusionMatrix(testSet$working,testSet$pred_rf)
+confusionMatrix(testSet$working,testSet$pred_lr)
+
 
