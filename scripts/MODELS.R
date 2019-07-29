@@ -34,7 +34,7 @@ df_train <- left_join(df_train_index, df1)
 df_test <- anti_join(df1, df_train_index)
 
 ## Create model
-reg_tot <- glm(working ~ peoplelive + numchildren + numearnincome + gender , data = df_train)
+reg_tot <- glm(working ~ peoplelive + numchildren + numearnincome + gender + cft_score + com_score, data = df_train)
 summary(reg_tot)
 
 ## Create predictions
@@ -68,7 +68,8 @@ confusion_matrix_tot <- df_pred_tot %>%
   ungroup()
 # Plot of the confusion matrix
 ggplot(confusion_matrix_tot) +
-  geom_bar(mapping = aes(x = working, y = nobs, fill = binary_pred_tot), stat = 'identity')
+  geom_bar(mapping = aes(x = working, y = nobs, fill = binary_pred_tot), stat = 'identity') +
+  ggtitle("Logistic Regression Predictions")
 # proportions
 confusion_matrix_tot <- confusion_matrix_tot %>% 
   mutate(proportion_pworking = nobs/total_working) %>% 
@@ -90,7 +91,7 @@ df2_processed <- predict(preProcValues, df2)
 
 ## generate kmeans clusters
 unid <- df2_processed %>% select(unid)
-df2_cluster <- df2_processed %>% select(numchildren,peoplelive,peoplelive_15plus,givemoney_yes)
+df2_cluster <- df2_processed %>% select(numchildren,peoplelive,numearnincome,peoplelive_15plus,givemoney_yes)
 k4 <- kmeans(df2_cluster, centers = 4, nstart = 25)
 k4_cluster <- as.data.frame(k4$cluster)
 df2_processed$cluster <- k4_cluster
@@ -113,8 +114,8 @@ fitControl <- trainControl(
   verboseIter = TRUE)
 ## Generate weights
 model_weights <- ifelse(trainSet$working == "FALSE.",
-                        (1 / table(trainSet$working)[1]),
-                        (1 / table(trainSet$working)[2]))
+                        (1 / table(trainSet$working)[1])*0.5,
+                        (1 / table(trainSet$working)[2])*0.5)
 ## Training the model
 model<-train(trainSet[,predictors],trainSet$working,
                 method='knn',
@@ -141,8 +142,8 @@ fitControl2 <- trainControl(
   verboseIter = TRUE)
 ## Generate weights
 model_weights2 <- ifelse(trainSet2$working == "FALSE.",
-                        (1 / table(trainSet2$working)[1]),
-                        (1 / table(trainSet2$working)[2]))
+                        (1 / table(trainSet2$working)[1])*0.5,
+                        (1 / table(trainSet2$working)[2])*0.5)
 ## Training the model
 model2<-train(trainSet2[,predictors],trainSet2$working,
              method='knn',
@@ -169,8 +170,8 @@ fitControl3 <- trainControl(
   verboseIter = TRUE)
 ## Generate weights
 model_weights3 <- ifelse(trainSet3$working == "FALSE.",
-                         (1 / table(trainSet3$working)[1]),
-                         (1 / table(trainSet3$working)[2]))
+                         (1 / table(trainSet3$working)[1])*0.5,
+                         (1 / table(trainSet3$working)[2])*0.5)
 ## Training the model
 model3<-train(trainSet3[,predictors],trainSet3$working,
               method='knn',
@@ -197,8 +198,8 @@ fitControl4 <- trainControl(
   verboseIter = TRUE)
 ## Generate weights
 model_weights4 <- ifelse(trainSet4$working == "FALSE.",
-                         (1 / table(trainSet4$working)[1]),
-                         (1 / table(trainSet4$working)[2]))
+                         (1 / table(trainSet4$working)[1])*0.5,
+                         (1 / table(trainSet4$working)[2])*0.5)
 ## Training the model
 model4<-train(trainSet4[,predictors],trainSet4$working,
               method='knn',
