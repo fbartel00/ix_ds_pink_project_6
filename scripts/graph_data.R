@@ -53,3 +53,15 @@ ggplot(data=df, aes(x = age, fill = working)) +
 df_peoplelive <- df %>% filter(!is.na(peoplelive))
 ggplot(data=df_peoplelive, aes(x = peoplelive, fill = working)) +
   geom_bar()
+
+
+
+
+## Split into 50/50 working and not working
+# df_true <- df %>% filter(working=="TRUE")
+# df_false <- df %>% filter(working=="FALSE")
+# df_sample_true = sample_n(df_true,11000,working="TRUE")
+# df_sample_false = sample_n(df_false,40000,working="FALSE")
+# df <- rbind(df_sample_true,df_sample_false)
+
+

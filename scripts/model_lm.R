@@ -116,7 +116,7 @@ df_test_female <- anti_join(df_female, df_train_index_female)
 ### Create the models
 # Total
 #reg_tot <- glm(working ~ gender + age + numchildren + peoplelive, data = df_train)
-reg_tot <- lm(working ~ gender + age, data = df_train)
+reg_tot <- glm(working ~ peoplelive + numearnincome + numchildren + com_score + opt_score + anygrant, data = df_train)
 summary(reg_tot)
 # Male
 reg_male <- lm(working ~ peoplelive + age + numchildren, data = df_train_male)
@@ -141,8 +141,8 @@ ggplot(df_pred_tot) +
   geom_density(mapping = aes(x = pred_tot, colour = gender))
 # Set prediction into dataframe
 df_pred_tot <- df_pred_tot %>% 
-  mutate(binary_pred_tot = case_when(pred_tot >= 0.236 ~ TRUE, 
-                                  pred_tot < 0.236 ~ FALSE))
+  mutate(binary_pred_tot = case_when(pred_tot >= 0.25 ~ TRUE, 
+                                  pred_tot < 0.25 ~ FALSE))
 # Male
 df_pred_male <- as.data.frame(predict.lm(reg_male, df_test_male)) %>% 
   rename(pred_male = "predict.lm(reg_male, df_test_male)")
